@@ -7,6 +7,32 @@ from scrapy import Selector
 
 
 class StplSpider(session.SessionSpider):
+    """
+    Scrapy spider for myStundenplan app
+
+    Usage:
+    scrapy crawl stpl -a tenant='[tenant]' -a username='[username]' -a password='[password]' -o stpl.jl
+
+    The site will be traversed the following way:
+    .
+    └── semesterJson
+        └── foreach:sem
+            ├── indexHtml
+            │   ├── foreach:stg
+            │   │   └── courseJson
+            │   │       └── foreach:stgru
+            │   │           ├── classCalendarHtml
+            │   │           └── classCalendarJson
+            │   └── foreach:raum
+            │       ├── raumCalendarHtml
+            │       └── raumCalendarJson
+            ├── courseSelectionJson
+            │   └── foreach:stgru
+            │       └── classSelectionJson
+            ├── personalCalendarHtml
+            └── personalCalendarJson
+    """
+
     name = 'stpl'
 
     def __init__(self, tenant=None, username=None, password=None, *args, **kwargs):
@@ -20,8 +46,8 @@ class StplSpider(session.SessionSpider):
         json_data = json.loads(response.text)
 
         # select semester ids
-        sems = jmespath.search('[? isaktuelles ==`true`].id', json_data)
-        # sems = jmespath.search('[].id', data)
+        # sems = jmespath.search('[? isaktuelles ==`true`].id', json_data)
+        sems = jmespath.search('[].id', json_data)
         self.log_select(meta, 'semester', sems)
         for sem in sems:
             context = {'sem': sem}
@@ -80,36 +106,31 @@ class StplSpider(session.SessionSpider):
                                form={'mode': 'calendar', 'raum': raum}, callback=self.scrape_json)
 
         # ---
-        stundenraster_strings = html_data.css('head > script:last_child::text').re(r'stundenraster\[\d+\] = \[(.*)\];')
         stundenraster = []
-        for s in stundenraster_strings:
-            match = re.fullmatch(r'\'(?P<starts>\d{2}.\d{2})\', \'(?P<ends>\d{2}.\d{2})\', \'(?P<slot>\d+)\'', s)
-            if match:
-                stundenraster.append({
-                    'slot': match.group('slot'),
-                    'starts': match.group('starts'),
-                    'ends': match.group('ends'),
-                })
+        for line in html_data.css('head > script:last_child::text').re(r'stundenraster\[\d+\] = \[(.*)\];'):
+            m = re.fullmatch(r'\'(?P<starts>\d{2}.\d{2})\', \'(?P<ends>\d{2}.\d{2})\', \'(?P<slot>\d+)\'', line)
+            if m:
+                stundenraster.append({'slot': m.group('slot'), 'starts': m.group('starts'), 'ends': m.group('ends'), })
 
         cbraum = []
-        cbraum_elements = html_data.css("#cbraum > option:not(:first-child)")
-        for (i, element) in enumerate(cbraum_elements):
+        for (i, element) in enumerate(html_data.css("#cbraum > option:not(:first-child)")):
             cbraum.append({
                 'id': element.css('::attr(value)').extract_first(),
                 'title': element.css('::attr(title)').extract_first(),
                 'name': element.css('::text').extract_first()
             })
 
+        js_variables = html_data.css('head > script:last_child::text')
+
         data = {
             'title': html_data.css('head > title::text').extract_first(),
-            'vorlesungsanfang': html_data.css('head > script:last_child::text').re_first(
-                r'Vorlesungsanfang = \'(.*)\';'),
-            'vorlesungsende': html_data.css('head > script:last_child::text').re_first(
-                r'Vorlesungsende = \'(.*)\';'),
-            'semesteranfang': html_data.css('head > script:last_child::text').re_first(
-                r'Semesteranfang = \'(.*)\';'),
-            'semesterende': html_data.css('head > script:last_child::text').re_first(
-                r'Semesterende = \'(.*)\';'),
+            'indexLink': js_variables.re_first(r'indexLink = \'(.*)\';'),
+            'frontendDir': js_variables.re_first(r'frontendDir = \'(.*)\';'),
+            'stplIndexLink': js_variables.re_first(r'STPL.IndexLink = \'(.*)\';'),
+            'vorlesungsanfang': js_variables.re_first(r'Vorlesungsanfang = \'(.*)\';'),
+            'vorlesungsende': js_variables.re_first( r'Vorlesungsende = \'(.*)\';'),
+            'semesteranfang': js_variables.re_first( r'Semesteranfang = \'(.*)\';'),
+            'semesterende': js_variables.re_first(r'Semesterende = \'(.*)\';'),
             'stundenraster': stundenraster,
             'cbraum': cbraum
         }
@@ -147,15 +168,22 @@ class StplSpider(session.SessionSpider):
     def scrape_class_calendar_html(self, response):
         meta = self.extract_meta(response)
         html_data = Selector(text=response.text)
-        data = {}
-        yield {'meta': meta._asdict(), 'data': data}
+        yield {'meta': meta._asdict(), 'data': {
+            'title': html_data.css('#content_title > h2::text').extract_first(),
+            'subtitle': html_data.css('#content_subtitle > div::text').extract_first()
+        }}
         self.log_done(meta)
 
     def scrape_raum_calendar_html(self, response):
         meta = self.extract_meta(response)
         html_data = Selector(text=response.text)
-        data = {}
-        yield {'meta': meta._asdict(), 'data': data}
+        yield {'meta': meta._asdict(), 'data': {
+            'title': html_data.css('#content_title > h2::text').extract_first(),
+            'subtitle': html_data.css('#content_subtitle > div > div:nth-child(1)::text').extract_first(),
+            'description': html_data.css('#content_subtitle > div > div:nth-child(2)::text').re_first(
+                r'Beschreibung: (.*)$'),
+            'type': html_data.css('#content_subtitle > div > div:nth-child(3)::text').re_first(r'Raumtyp: (.*)$')
+        }}
         self.log_done(meta)
 
     def scrape_json(self, response):
