@@ -13,7 +13,6 @@ def url_create(url, query_data):
 class SessionSpider(scrapy.Spider):
     VALID_SESSION_LEN = 40
 
-    name = 'session'
     allowed_domains = ['www3.primuss.de']
 
     def __init__(self, tenant=None, username=None, password=None, *args, **kwargs):
@@ -53,15 +52,6 @@ class SessionSpider(scrapy.Spider):
         raise NotImplementedError
 
     def request(self, meta, query=None, form=None, callback=None):
-        """ Returns a new form request with given query and form params
-
-        Query and form will be updated with current session information
-
-        :param query:
-        :param form:
-        :param callback:
-        :return:
-        """
         if query is None: query = {}
         if form is None: form = {}
 

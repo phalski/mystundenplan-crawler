@@ -13,6 +13,8 @@ class StplSpider(session.SessionSpider):
     Usage:
     scrapy crawl stpl -a tenant='[tenant]' -a username='[username]' -a password='[password]' -o stpl.jl
 
+    Tenant is 'fhin' for THI, use your LDAP user credentials to authenticate yourself.
+
     The site will be traversed the following way:
     .
     └── semesterJson
@@ -31,12 +33,16 @@ class StplSpider(session.SessionSpider):
             │       └── classSelectionJson
             ├── personalCalendarHtml
             └── personalCalendarJson
+
+    By default this spider will fetch only data from the latest semester. Use the [all] switch to scrape the full data
+    set. (-a all=True)
     """
 
     name = 'stpl'
 
-    def __init__(self, tenant=None, username=None, password=None, *args, **kwargs):
+    def __init__(self, tenant=None, username=None, password=None, all=False, *args, **kwargs):
         super(StplSpider, self).__init__(tenant, username, password, *args, **kwargs)
+        self.all = all
 
     def parse(self, response):
         yield self.request(self.meta('semesterJson'), form={'mode': 'cbsem'}, callback=self.scrape_semester_json)
@@ -46,8 +52,13 @@ class StplSpider(session.SessionSpider):
         json_data = json.loads(response.text)
 
         # select semester ids
-        # sems = jmespath.search('[? isaktuelles ==`true`].id', json_data)
-        sems = jmespath.search('[].id', json_data)
+        if self.all:
+            self.logger.info('Start scraping all semesters')
+            sems = jmespath.search('[].id', json_data)
+        else:
+            self.logger.info('Start scraping current semester')
+            sems = jmespath.search('[? isaktuelles ==`true`].id', json_data)
+
         self.log_select(meta, 'semester', sems)
         for sem in sems:
             context = {'sem': sem}
@@ -135,8 +146,6 @@ class StplSpider(session.SessionSpider):
             'cbraum': cbraum
         }
         # ---
-
-
         yield {'meta': meta._asdict(), 'data': data}
         self.log_done(meta)
 
