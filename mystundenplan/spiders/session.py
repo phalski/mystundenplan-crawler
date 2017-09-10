@@ -62,9 +62,9 @@ class SessionSpider(scrapy.Spider):
                                   meta={'meta': meta})
 
     def meta(self, name, context=None, show_user=False):
-        meta_context = {'fh': self.session.fh}
+        meta_context = {'tenant': self.session.fh}
         if show_user:
-            meta_context.update({'user': self.session.user})
+            meta_context.update({'username': self.session.user})
         if not context is None:
             meta_context.update(context)
 
