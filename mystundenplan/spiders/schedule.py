@@ -39,7 +39,7 @@ class StplSpider(session.SessionSpider):
     set. (-a all=True)
     """
 
-    name = 'stpl'
+    name = 'schedule'
 
     def __init__(self, tenant=None, username=None, password=None, all=False, *args, **kwargs):
         super(StplSpider, self).__init__(tenant, username, password, *args, **kwargs)
