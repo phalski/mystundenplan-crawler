@@ -7,12 +7,12 @@ from scrapy import Selector
 from mystundenplan.items import Download
 
 
-class StplSpider(session.SessionSpider):
+class ScheduleSpider(session.SessionSpider):
     """
     Scrapy spider for myStundenplan app
 
     Usage:
-    scrapy crawl stpl -a tenant='[tenant]' -a username='[username]' -a password='[password]' -o stpl.jl
+    scrapy crawl schedule -a tenant='[tenant]' -a username='[username]' -a password='[password]' -o stpl.jl
 
     Tenant is 'fhin' for THI, use your LDAP user credentials to authenticate yourself.
 
@@ -42,7 +42,7 @@ class StplSpider(session.SessionSpider):
     name = 'schedule'
 
     def __init__(self, tenant=None, username=None, password=None, all=False, *args, **kwargs):
-        super(StplSpider, self).__init__(tenant, username, password, *args, **kwargs)
+        super(ScheduleSpider, self).__init__(tenant, username, password, *args, **kwargs)
         self.all = all
 
     def parse(self, response):
